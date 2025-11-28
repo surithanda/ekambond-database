@@ -1,0 +1,61 @@
+# Python temporary files
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.pyc
+
+# Virtual environments
+venv/
+env/
+ENV/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Temporary files
+*.tmp
+*.temp
+*.bak
+*.backup
+*.old
+
+# Logs
+*.log
+
+# Database credentials (if you create config files)
+config.ini
+credentials.json
+.env
+
+# Temporary SQL files
+temp_*.sql
+test_*.sql
+
+# Python scripts used for one-time operations
+normalize_tables.py
+separate_data.py
+format_insert_statements.py
+fix_lookup_formatting.py
+remove_column_collations.py
+clean_sql_files.py
+clean_routines.py
+fix_routines_delimiters.py
+
+# Backup folders
+backup/
+backups/
+old/
+
+# Clean folder (temporary scripts)
+clean/

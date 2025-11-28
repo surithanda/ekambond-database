@@ -60,8 +60,8 @@ proc_label: BEGIN
     -- Check if user exists
     IF v_admin_id IS NULL THEN
         -- Don't reveal if email exists for security
-        SET p_error_code = NULL;
-        SET p_error_message = NULL;
+        SET v_error_code = NULL;
+        SET v_error_message = NULL;
         
         SELECT 
             'SUCCESS' AS status,

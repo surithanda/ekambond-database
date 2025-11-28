@@ -26,6 +26,12 @@ CREATE PROCEDURE `admin_get_total_payments`(
 BEGIN
     DECLARE v_total_count INT DEFAULT 0;
     DECLARE v_total_amount DECIMAL(10,2) DEFAULT 0;
+    DECLARE v_successful_count INT DEFAULT 0;
+    DECLARE v_successful_amount DECIMAL(10,2) DEFAULT 0;
+    DECLARE v_pending_count INT DEFAULT 0;
+    DECLARE v_pending_amount DECIMAL(10,2) DEFAULT 0;
+    DECLARE v_failed_count INT DEFAULT 0;
+    DECLARE v_failed_amount DECIMAL(10,2) DEFAULT 0;
     DECLARE v_error_code VARCHAR(10);
     DECLARE v_error_message VARCHAR(255);
     
@@ -37,12 +43,6 @@ BEGIN
             v_error_code = MYSQL_ERRNO;
         SELECT 'fail' AS status, 'SQL Exception' AS error_type, v_error_code AS error_code, v_error_message AS error_message;
     END;
-    DECLARE v_successful_count INT DEFAULT 0;
-    DECLARE v_successful_amount DECIMAL(10,2) DEFAULT 0;
-    DECLARE v_pending_count INT DEFAULT 0;
-    DECLARE v_pending_amount DECIMAL(10,2) DEFAULT 0;
-    DECLARE v_failed_count INT DEFAULT 0;
-    DECLARE v_failed_amount DECIMAL(10,2) DEFAULT 0;
     
     -- Set default pagination values
     SET p_limit = COALESCE(p_limit, 50);

@@ -19,9 +19,7 @@ CREATE PROCEDURE `admin_approve_partner_registrations`(
     IN p_action VARCHAR(20),
     IN p_rejection_reason VARCHAR(255),
     IN p_api_key_expiry_days INT,
-    IN p_admin_user VARCHAR(45),
-    OUT p_error_code VARCHAR(10),
-    OUT p_error_message VARCHAR(255)
+    IN p_admin_user VARCHAR(45)
 )
 proc_label: BEGIN
     DECLARE v_partner_exists INT DEFAULT 0;
@@ -32,18 +30,33 @@ proc_label: BEGIN
     DECLARE v_api_key VARCHAR(64);
     DECLARE v_api_key_expires DATETIME;
     DECLARE v_start_time DATETIME;
+    DECLARE v_error_code VARCHAR(10);
+    DECLARE v_error_message VARCHAR(255);
+    
+    -- Error handling
+    DECLARE EXIT HANDLER FOR SQLEXCEPTION
+    BEGIN
+        GET DIAGNOSTICS CONDITION 1
+            v_error_message = MESSAGE_TEXT,
+            v_error_code = MYSQL_ERRNO;
+        SELECT 'fail' AS status, 'SQL Exception' AS error_type, v_error_code AS error_code, v_error_message AS error_message;
+    END;
+    
+    DECLARE EXIT HANDLER FOR SQLSTATE '45000'
+    BEGIN
+        SELECT 'fail' AS status, 'Validation Exception' AS error_type, v_error_code AS error_code, v_error_message AS error_message;
+    END;
     
     SET v_start_time = NOW();
-    SET p_error_code = NULL;
-    SET p_error_message = NULL;
+    SET v_error_code = NULL;
+    SET v_error_message = NULL;
     SET p_api_key_expiry_days = COALESCE(p_api_key_expiry_days, 365);
     
     -- Validate action
     IF p_action NOT IN ('approve', 'reject') THEN
-        SET p_error_code = '51006';
-        SET p_error_message = 'Invalid action. Must be approve or reject';
-        
-        SELECT p_error_code AS error_code, p_error_message AS error_message;
+        SET v_error_code = '51006';
+        SET v_error_message = 'Invalid action. Must be approve or reject';
+        SELECT 'fail' AS status, 'Validation Exception' AS error_type, v_error_code AS error_code, v_error_message AS error_message;
         LEAVE proc_label;
     END IF;
     
@@ -54,19 +67,17 @@ proc_label: BEGIN
     WHERE id = p_partner_id;
     
     IF v_partner_exists = 0 THEN
-        SET p_error_code = '51007';
-        SET p_error_message = 'Partner registration not found';
-        
-        SELECT p_error_code AS error_code, p_error_message AS error_message;
+        SET v_error_code = '51007';
+        SET v_error_message = 'Partner registration not found';
+        SELECT 'fail' AS status, 'Validation Exception' AS error_type, v_error_code AS error_code, v_error_message AS error_message;
         LEAVE proc_label;
     END IF;
     
     -- Check if already processed
     IF v_current_status != 'pending' THEN
-        SET p_error_code = '51008';
-        SET p_error_message = CONCAT('Partner registration already ', v_current_status);
-        
-        SELECT p_error_code AS error_code, p_error_message AS error_message;
+        SET v_error_code = '51008';
+        SET v_error_message = CONCAT('Partner registration already ', v_current_status);
+        SELECT 'fail' AS status, 'Validation Exception' AS error_type, v_error_code AS error_code, v_error_message AS error_message;
         LEAVE proc_label;
     END IF;
     
@@ -77,10 +88,9 @@ proc_label: BEGIN
         WHERE business_name = v_business_name AND contact_email = v_contact_email;
         
         IF v_partner_exists > 0 THEN
-            SET p_error_code = '51009';
-            SET p_error_message = 'API client already exists for this partner';
-            
-            SELECT p_error_code AS error_code, p_error_message AS error_message;
+            SET v_error_code = '51009';
+            SET v_error_message = 'API client already exists for this partner';
+            SELECT 'fail' AS status, 'Validation Exception' AS error_type, v_error_code AS error_code, v_error_message AS error_message;
             LEAVE proc_label;
         END IF;
         
@@ -208,23 +218,23 @@ proc_label: BEGIN
         
         -- Return API client details
         SELECT 
-            'SUCCESS' AS status,
+            'success' AS status,
+            NULL AS error_type,
+            NULL AS error_code,
+            NULL AS error_message,
             'approved' AS action,
             v_api_client_id AS api_client_id,
             v_api_key AS api_key,
             v_api_key_expires AS api_key_expires,
             v_business_name AS business_name,
-            v_contact_email AS contact_email,
-            NULL AS error_code,
-            NULL AS error_message;
+            v_contact_email AS contact_email;
         
     ELSE
         -- Reject partner registration
         IF p_rejection_reason IS NULL OR p_rejection_reason = '' THEN
-            SET p_error_code = '51010';
-            SET p_error_message = 'Rejection reason is required';
-            
-            SELECT p_error_code AS error_code, p_error_message AS error_message;
+            SET v_error_code = '51010';
+            SET v_error_message = 'Rejection reason is required';
+            SELECT 'fail' AS status, 'Validation Exception' AS error_type, v_error_code AS error_code, v_error_message AS error_message;
             LEAVE proc_label;
         END IF;
         
@@ -283,14 +293,15 @@ proc_label: BEGIN
         
         -- Return rejection details
         SELECT 
-            'SUCCESS' AS status,
+            'success' AS status,
+            NULL AS error_type,
+            NULL AS error_code,
+            NULL AS error_message,
             'rejected' AS action,
             p_partner_id AS partner_id,
             v_business_name AS business_name,
             v_contact_email AS contact_email,
-            p_rejection_reason AS rejection_reason,
-            NULL AS error_code,
-            NULL AS error_message;
+            p_rejection_reason AS rejection_reason;
     END IF;
     
 END proc_label$$

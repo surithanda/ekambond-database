@@ -11,9 +11,7 @@ DELIMITER $$
 DROP PROCEDURE IF EXISTS `admin_auth_reset_password`$$
 
 CREATE PROCEDURE `admin_auth_reset_password`(
-    IN p_email VARCHAR(150),
-    OUT p_error_code VARCHAR(10),
-    OUT p_error_message VARCHAR(255)
+    IN p_email VARCHAR(150)
 )
 proc_label: BEGIN
     DECLARE v_admin_id INT;
@@ -21,10 +19,36 @@ proc_label: BEGIN
     DECLARE v_reset_token VARCHAR(128);
     DECLARE v_expires_at DATETIME;
     DECLARE v_start_time DATETIME;
+    DECLARE v_error_code VARCHAR(10);
+    DECLARE v_error_message VARCHAR(255);
+    
+    -- Error handling
+    DECLARE EXIT HANDLER FOR SQLEXCEPTION
+    BEGIN
+        GET DIAGNOSTICS CONDITION 1
+            v_error_message = MESSAGE_TEXT,
+            v_error_code = MYSQL_ERRNO;
+        
+        SELECT 
+            'fail' AS status,
+            'SQL Exception' AS error_type,
+            v_error_code AS error_code,
+            v_error_message AS error_message;
+    END;
+    
+    -- Custom error handler
+    DECLARE EXIT HANDLER FOR SQLSTATE '45000'
+    BEGIN
+        SELECT 
+            'fail' AS status,
+            'Validation Exception' AS error_type,
+            v_error_code AS error_code,
+            v_error_message AS error_message;
+    END;
     
     SET v_start_time = NOW();
-    SET p_error_code = NULL;
-    SET p_error_message = NULL;
+    SET v_error_code = NULL;
+    SET v_error_message = NULL;
     
     -- Find admin user
     SELECT admin_id, is_active
@@ -49,10 +73,14 @@ proc_label: BEGIN
     
     -- Check if account is active
     IF v_is_active = 0 THEN
-        SET p_error_code = '48012';
-        SET p_error_message = 'Account is inactive';
+        SET v_error_code = '48012';
+        SET v_error_message = 'Account is inactive';
         
-        SELECT p_error_code AS error_code, p_error_message AS error_message;
+        SELECT 
+            'fail' AS status,
+            'Validation Exception' AS error_type,
+            v_error_code AS error_code,
+            v_error_message AS error_message;
         LEAVE proc_label;
     END IF;
     
@@ -89,12 +117,13 @@ proc_label: BEGIN
     
     -- Return success (don't expose token in response)
     SELECT 
-        'SUCCESS' AS status,
+        'success' AS status,
+        NULL AS error_type,
+        NULL AS error_code,
+        NULL AS error_message,
         'Password reset email has been sent' AS message,
         v_reset_token AS reset_token,
-        v_expires_at AS expires_at,
-        NULL AS error_code,
-        NULL AS error_message;
+        v_expires_at AS expires_at;
     
 END proc_label$$
 

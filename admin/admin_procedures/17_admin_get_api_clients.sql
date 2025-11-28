@@ -23,6 +23,17 @@ CREATE PROCEDURE `admin_get_api_clients`(
 )
 BEGIN
     DECLARE v_total_count INT DEFAULT 0;
+    DECLARE v_error_code VARCHAR(10);
+    DECLARE v_error_message VARCHAR(255);
+    
+    -- Error handling
+    DECLARE EXIT HANDLER FOR SQLEXCEPTION
+    BEGIN
+        GET DIAGNOSTICS CONDITION 1
+            v_error_message = MESSAGE_TEXT,
+            v_error_code = MYSQL_ERRNO;
+        SELECT 'fail' AS status, 'SQL Exception' AS error_type, v_error_code AS error_code, v_error_message AS error_message;
+    END;
     
     -- Set default pagination values
     SET p_limit = COALESCE(p_limit, 50);
@@ -40,6 +51,10 @@ BEGIN
     
     -- Return API clients with statistics
     SELECT 
+        'success' AS status,
+        NULL AS error_type,
+        NULL AS error_code,
+        NULL AS error_message,
         c.id AS client_id,
         c.business_name,
         c.business_type,

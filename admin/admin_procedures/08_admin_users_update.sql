@@ -21,9 +21,7 @@ CREATE PROCEDURE `admin_users_update`(
     IN p_role VARCHAR(20),
     IN p_is_active TINYINT(1),
     IN p_mfa_enabled TINYINT(1),
-    IN p_updated_by VARCHAR(45),
-    OUT p_error_code VARCHAR(10),
-    OUT p_error_message VARCHAR(255)
+    IN p_updated_by VARCHAR(45)
 )
 proc_label: BEGIN
     DECLARE v_admin_exists INT DEFAULT 0;
@@ -32,10 +30,26 @@ proc_label: BEGIN
     DECLARE v_old_is_active TINYINT(1);
     DECLARE v_start_time DATETIME;
     DECLARE v_changes JSON;
+    DECLARE v_error_code VARCHAR(10);
+    DECLARE v_error_message VARCHAR(255);
+    
+    -- Error handling
+    DECLARE EXIT HANDLER FOR SQLEXCEPTION
+    BEGIN
+        GET DIAGNOSTICS CONDITION 1
+            v_error_message = MESSAGE_TEXT,
+            v_error_code = MYSQL_ERRNO;
+        SELECT 'fail' AS status, 'SQL Exception' AS error_type, v_error_code AS error_code, v_error_message AS error_message;
+    END;
+    
+    DECLARE EXIT HANDLER FOR SQLSTATE '45000'
+    BEGIN
+        SELECT 'fail' AS status, 'Validation Exception' AS error_type, v_error_code AS error_code, v_error_message AS error_message;
+    END;
     
     SET v_start_time = NOW();
-    SET p_error_code = NULL;
-    SET p_error_message = NULL;
+    SET v_error_code = NULL;
+    SET v_error_message = NULL;
     
     -- Check if admin exists
     SELECT COUNT(*), role, is_active
@@ -44,19 +58,17 @@ proc_label: BEGIN
     WHERE admin_id = p_admin_id;
     
     IF v_admin_exists = 0 THEN
-        SET p_error_code = '50005';
-        SET p_error_message = 'Admin user not found';
-        
-        SELECT p_error_code AS error_code, p_error_message AS error_message;
+        SET v_error_code = '50005';
+        SET v_error_message = 'Admin user not found';
+        SELECT 'fail' AS status, 'Validation Exception' AS error_type, v_error_code AS error_code, v_error_message AS error_message;
         LEAVE proc_label;
     END IF;
     
     -- Validate role if provided
     IF p_role IS NOT NULL AND p_role NOT IN ('viewer', 'approver', 'admin') THEN
-        SET p_error_code = '50002';
-        SET p_error_message = 'Invalid role. Must be viewer, approver, or admin';
-        
-        SELECT p_error_code AS error_code, p_error_message AS error_message;
+        SET v_error_code = '50002';
+        SET v_error_message = 'Invalid role. Must be viewer, approver, or admin';
+        SELECT 'fail' AS status, 'Validation Exception' AS error_type, v_error_code AS error_code, v_error_message AS error_message;
         LEAVE proc_label;
     END IF;
     
@@ -67,10 +79,9 @@ proc_label: BEGIN
         WHERE email = p_email AND admin_id != p_admin_id;
         
         IF v_email_exists > 0 THEN
-            SET p_error_code = '50004';
-            SET p_error_message = 'Email already exists';
-            
-            SELECT p_error_code AS error_code, p_error_message AS error_message;
+            SET v_error_code = '50004';
+            SET v_error_message = 'Email already exists';
+            SELECT 'fail' AS status, 'Validation Exception' AS error_type, v_error_code AS error_code, v_error_message AS error_message;
             LEAVE proc_label;
         END IF;
     END IF;
@@ -140,6 +151,10 @@ proc_label: BEGIN
     
     -- Return updated admin user details
     SELECT 
+        'success' AS status,
+        NULL AS error_type,
+        NULL AS error_code,
+        NULL AS error_message,
         admin_id,
         username,
         email,
@@ -148,9 +163,7 @@ proc_label: BEGIN
         mfa_enabled,
         last_login,
         created_at,
-        updated_at,
-        NULL AS error_code,
-        NULL AS error_message
+        updated_at
     FROM admin_users
     WHERE admin_id = p_admin_id;
     

@@ -13,9 +13,7 @@ DROP PROCEDURE IF EXISTS `admin_auth_confirm_reset_password`$$
 
 CREATE PROCEDURE `admin_auth_confirm_reset_password`(
     IN p_token VARCHAR(128),
-    IN p_new_password_hash VARCHAR(255),
-    OUT p_error_code VARCHAR(10),
-    OUT p_error_message VARCHAR(255)
+    IN p_new_password_hash VARCHAR(255)
 )
 proc_label: BEGIN
     DECLARE v_admin_id INT;
@@ -23,10 +21,36 @@ proc_label: BEGIN
     DECLARE v_expires_at DATETIME;
     DECLARE v_is_used TINYINT(1);
     DECLARE v_start_time DATETIME;
+    DECLARE v_error_code VARCHAR(10);
+    DECLARE v_error_message VARCHAR(255);
+    
+    -- Error handling
+    DECLARE EXIT HANDLER FOR SQLEXCEPTION
+    BEGIN
+        GET DIAGNOSTICS CONDITION 1
+            v_error_message = MESSAGE_TEXT,
+            v_error_code = MYSQL_ERRNO;
+        
+        SELECT 
+            'fail' AS status,
+            'SQL Exception' AS error_type,
+            v_error_code AS error_code,
+            v_error_message AS error_message;
+    END;
+    
+    -- Custom error handler
+    DECLARE EXIT HANDLER FOR SQLSTATE '45000'
+    BEGIN
+        SELECT 
+            'fail' AS status,
+            'Validation Exception' AS error_type,
+            v_error_code AS error_code,
+            v_error_message AS error_message;
+    END;
     
     SET v_start_time = NOW();
-    SET p_error_code = NULL;
-    SET p_error_message = NULL;
+    SET v_error_code = NULL;
+    SET v_error_message = NULL;
     
     -- Find reset token
     SELECT token_id, admin_id, expires_at, is_used
@@ -37,28 +61,40 @@ proc_label: BEGIN
     
     -- Check if token exists
     IF v_token_id IS NULL THEN
-        SET p_error_code = '48013';
-        SET p_error_message = 'Invalid reset token';
+        SET v_error_code = '48013';
+        SET v_error_message = 'Invalid reset token';
         
-        SELECT p_error_code AS error_code, p_error_message AS error_message;
+        SELECT 
+            'fail' AS status,
+            'Validation Exception' AS error_type,
+            v_error_code AS error_code,
+            v_error_message AS error_message;
         LEAVE proc_label;
     END IF;
     
     -- Check if token is already used
     IF v_is_used = 1 THEN
-        SET p_error_code = '48014';
-        SET p_error_message = 'Reset token has already been used';
+        SET v_error_code = '48014';
+        SET v_error_message = 'Reset token has already been used';
         
-        SELECT p_error_code AS error_code, p_error_message AS error_message;
+        SELECT 
+            'fail' AS status,
+            'Validation Exception' AS error_type,
+            v_error_code AS error_code,
+            v_error_message AS error_message;
         LEAVE proc_label;
     END IF;
     
     -- Check if token is expired
     IF v_expires_at < NOW() THEN
-        SET p_error_code = '48015';
-        SET p_error_message = 'Reset token has expired';
+        SET v_error_code = '48015';
+        SET v_error_message = 'Reset token has expired';
         
-        SELECT p_error_code AS error_code, p_error_message AS error_message;
+        SELECT 
+            'fail' AS status,
+            'Validation Exception' AS error_type,
+            v_error_code AS error_code,
+            v_error_message AS error_message;
         LEAVE proc_label;
     END IF;
     
@@ -101,10 +137,11 @@ proc_label: BEGIN
     
     -- Return success
     SELECT 
-        'SUCCESS' AS status,
-        'Password has been reset successfully' AS message,
+        'success' AS status,
+        NULL AS error_type,
         NULL AS error_code,
-        NULL AS error_message;
+        NULL AS error_message,
+        'Password has been reset successfully' AS message;
     
 END proc_label$$
 

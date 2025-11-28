@@ -26,6 +26,17 @@ CREATE PROCEDURE `admin_get_total_payments`(
 BEGIN
     DECLARE v_total_count INT DEFAULT 0;
     DECLARE v_total_amount DECIMAL(10,2) DEFAULT 0;
+    DECLARE v_error_code VARCHAR(10);
+    DECLARE v_error_message VARCHAR(255);
+    
+    -- Error handling
+    DECLARE EXIT HANDLER FOR SQLEXCEPTION
+    BEGIN
+        GET DIAGNOSTICS CONDITION 1
+            v_error_message = MESSAGE_TEXT,
+            v_error_code = MYSQL_ERRNO;
+        SELECT 'fail' AS status, 'SQL Exception' AS error_type, v_error_code AS error_code, v_error_message AS error_message;
+    END;
     DECLARE v_successful_count INT DEFAULT 0;
     DECLARE v_successful_amount DECIMAL(10,2) DEFAULT 0;
     DECLARE v_pending_count INT DEFAULT 0;
@@ -65,6 +76,10 @@ BEGIN
     
     -- Return payment records with details
     SELECT 
+        'success' AS status,
+        NULL AS error_type,
+        NULL AS error_code,
+        NULL AS error_message,
         pi.id,
         pi.payment_intent_id,
         pi.amount,

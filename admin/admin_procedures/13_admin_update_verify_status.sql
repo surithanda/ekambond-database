@@ -17,9 +17,7 @@ CREATE PROCEDURE `admin_update_verify_status`(
     IN p_table_name VARCHAR(50),
     IN p_record_id INT,
     IN p_verification_status VARCHAR(20),
-    IN p_admin_user VARCHAR(45),
-    OUT p_error_code VARCHAR(10),
-    OUT p_error_message VARCHAR(255)
+    IN p_admin_user VARCHAR(45)
 )
 proc_label: BEGIN
     DECLARE v_record_exists INT DEFAULT 0;
@@ -28,26 +26,40 @@ proc_label: BEGIN
     DECLARE v_email VARCHAR(150);
     DECLARE v_start_time DATETIME;
     DECLARE v_sql_query TEXT;
+    DECLARE v_error_code VARCHAR(10);
+    DECLARE v_error_message VARCHAR(255);
+    
+    -- Error handling
+    DECLARE EXIT HANDLER FOR SQLEXCEPTION
+    BEGIN
+        GET DIAGNOSTICS CONDITION 1
+            v_error_message = MESSAGE_TEXT,
+            v_error_code = MYSQL_ERRNO;
+        SELECT 'fail' AS status, 'SQL Exception' AS error_type, v_error_code AS error_code, v_error_message AS error_message;
+    END;
+    
+    DECLARE EXIT HANDLER FOR SQLSTATE '45000'
+    BEGIN
+        SELECT 'fail' AS status, 'Validation Exception' AS error_type, v_error_code AS error_code, v_error_message AS error_message;
+    END;
     
     SET v_start_time = NOW();
-    SET p_error_code = NULL;
-    SET p_error_message = NULL;
+    SET v_error_code = NULL;
+    SET v_error_message = NULL;
     
     -- Validate table name
     IF p_table_name NOT IN ('personal', 'address', 'education', 'employment', 'photos') THEN
-        SET p_error_code = '51003';
-        SET p_error_message = 'Invalid table name. Must be: personal, address, education, employment, or photos';
-        
-        SELECT p_error_code AS error_code, p_error_message AS error_message;
+        SET v_error_code = '51003';
+        SET v_error_message = 'Invalid table name. Must be: personal, address, education, employment, or photos';
+        SELECT 'fail' AS status, 'Validation Exception' AS error_type, v_error_code AS error_code, v_error_message AS error_message;
         LEAVE proc_label;
     END IF;
     
     -- Validate verification status
     IF p_verification_status NOT IN ('pending', 'verified', 'rejected') THEN
-        SET p_error_code = '51004';
-        SET p_error_message = 'Invalid verification status. Must be: pending, verified, or rejected';
-        
-        SELECT p_error_code AS error_code, p_error_message AS error_message;
+        SET v_error_code = '51004';
+        SET v_error_message = 'Invalid verification status. Must be: pending, verified, or rejected';
+        SELECT 'fail' AS status, 'Validation Exception' AS error_type, v_error_code AS error_code, v_error_message AS error_message;
         LEAVE proc_label;
     END IF;
     
@@ -61,9 +73,9 @@ proc_label: BEGIN
             WHERE profile_id = p_record_id;
             
             IF v_record_exists = 0 THEN
-                SET p_error_code = '51005';
-                SET p_error_message = 'Profile personal record not found';
-                SELECT p_error_code AS error_code, p_error_message AS error_message;
+                SET v_error_code = '51005';
+                SET v_error_message = 'Profile personal record not found';
+                SELECT 'fail' AS status, 'Validation Exception' AS error_type, v_error_code AS error_code, v_error_message AS error_message;
                 LEAVE proc_label;
             END IF;
             
@@ -82,9 +94,9 @@ proc_label: BEGIN
             WHERE address_id = p_record_id;
             
             IF v_record_exists = 0 THEN
-                SET p_error_code = '51005';
-                SET p_error_message = 'Profile address record not found';
-                SELECT p_error_code AS error_code, p_error_message AS error_message;
+                SET v_error_code = '51005';
+                SET v_error_message = 'Profile address record not found';
+                SELECT 'fail' AS status, 'Validation Exception' AS error_type, v_error_code AS error_code, v_error_message AS error_message;
                 LEAVE proc_label;
             END IF;
             
@@ -105,9 +117,9 @@ proc_label: BEGIN
             WHERE education_id = p_record_id;
             
             IF v_record_exists = 0 THEN
-                SET p_error_code = '51005';
-                SET p_error_message = 'Profile education record not found';
-                SELECT p_error_code AS error_code, p_error_message AS error_message;
+                SET v_error_code = '51005';
+                SET v_error_message = 'Profile education record not found';
+                SELECT 'fail' AS status, 'Validation Exception' AS error_type, v_error_code AS error_code, v_error_message AS error_message;
                 LEAVE proc_label;
             END IF;
             
@@ -128,9 +140,9 @@ proc_label: BEGIN
             WHERE employment_id = p_record_id;
             
             IF v_record_exists = 0 THEN
-                SET p_error_code = '51005';
-                SET p_error_message = 'Profile employment record not found';
-                SELECT p_error_code AS error_code, p_error_message AS error_message;
+                SET v_error_code = '51005';
+                SET v_error_message = 'Profile employment record not found';
+                SELECT 'fail' AS status, 'Validation Exception' AS error_type, v_error_code AS error_code, v_error_message AS error_message;
                 LEAVE proc_label;
             END IF;
             
@@ -151,9 +163,9 @@ proc_label: BEGIN
             WHERE photo_id = p_record_id;
             
             IF v_record_exists = 0 THEN
-                SET p_error_code = '51005';
-                SET p_error_message = 'Profile photo record not found';
-                SELECT p_error_code AS error_code, p_error_message AS error_message;
+                SET v_error_code = '51005';
+                SET v_error_message = 'Profile photo record not found';
+                SELECT 'fail' AS status, 'Validation Exception' AS error_type, v_error_code AS error_code, v_error_message AS error_message;
                 LEAVE proc_label;
             END IF;
             
@@ -219,14 +231,15 @@ proc_label: BEGIN
     
     -- Return success
     SELECT 
-        'SUCCESS' AS status,
+        'success' AS status,
+        NULL AS error_type,
+        NULL AS error_code,
+        NULL AS error_message,
         p_table_name AS table_name,
         p_record_id AS record_id,
         p_verification_status AS verification_status,
         p_admin_user AS verified_by,
-        NOW() AS verified_date,
-        NULL AS error_code,
-        NULL AS error_message;
+        NOW() AS verified_date;
     
 END proc_label$$
 

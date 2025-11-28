@@ -17,9 +17,7 @@ CREATE PROCEDURE `admin_auth_login`(
     IN p_username VARCHAR(150),
     IN p_password_hash VARCHAR(255),
     IN p_ip_address VARCHAR(45),
-    IN p_user_agent TEXT,
-    OUT p_error_code VARCHAR(10),
-    OUT p_error_message VARCHAR(255)
+    IN p_user_agent TEXT
 )
 proc_label: BEGIN
     DECLARE v_admin_id INT;
@@ -35,6 +33,8 @@ proc_label: BEGIN
     DECLARE v_start_time DATETIME;
     DECLARE v_end_time DATETIME;
     DECLARE v_execution_time INT;
+    DECLARE v_error_code VARCHAR(10);
+    DECLARE v_error_message VARCHAR(255);
     
     -- Error handling
     DECLARE EXIT HANDLER FOR SQLEXCEPTION
@@ -42,18 +42,39 @@ proc_label: BEGIN
         SET v_end_time = NOW();
         SET v_execution_time = TIMESTAMPDIFF(MICROSECOND, v_start_time, v_end_time);
         
+        GET DIAGNOSTICS CONDITION 1
+            v_error_message = MESSAGE_TEXT,
+            v_error_code = MYSQL_ERRNO;
+        
         INSERT INTO activity_log (log_type, message, created_by, start_time, end_time, execution_time, ip_address, activity_type)
         VALUES ('ERROR', 'admin_auth_login failed: SQL Exception', p_username, v_start_time, v_end_time, v_execution_time, p_ip_address, 'ADMIN_LOGIN_ERROR');
         
-        SET p_error_code = '48001';
-        SET p_error_message = 'Authentication failed due to system error';
+        SELECT 
+            'fail' AS status,
+            'SQL Exception' AS error_type,
+            '48001' AS error_code,
+            'Authentication failed due to system error' AS error_message;
+    END;
+    
+    -- Custom error handler
+    DECLARE EXIT HANDLER FOR SQLSTATE '45000'
+    BEGIN
+        SET v_end_time = NOW();
+        SET v_execution_time = TIMESTAMPDIFF(MICROSECOND, v_start_time, v_end_time);
         
-        SELECT p_error_code AS error_code, p_error_message AS error_message;
+        INSERT INTO activity_log (log_type, message, created_by, start_time, end_time, execution_time, ip_address, activity_type)
+        VALUES ('ERROR', v_error_message, p_username, v_start_time, v_end_time, v_execution_time, p_ip_address, 'ADMIN_LOGIN_ERROR');
+        
+        SELECT 
+            'fail' AS status,
+            'Validation Exception' AS error_type,
+            v_error_code AS error_code,
+            v_error_message AS error_message;
     END;
     
     SET v_start_time = NOW();
-    SET p_error_code = NULL;
-    SET p_error_message = NULL;
+    SET v_error_code = NULL;
+    SET v_error_message = NULL;
     
     -- Find admin user by username or email
     SELECT 
@@ -78,37 +99,49 @@ proc_label: BEGIN
     
     -- Check if user exists
     IF v_admin_id IS NULL THEN
-        SET p_error_code = '48002';
-        SET p_error_message = 'Invalid username or password';
+        SET v_error_code = '48002';
+        SET v_error_message = 'Invalid username or password';
         
         INSERT INTO activity_log (log_type, message, created_by, start_time, end_time, execution_time, ip_address, activity_type)
         VALUES ('WARNING', CONCAT('Failed login attempt for username: ', p_username), p_username, v_start_time, NOW(), 0, p_ip_address, 'ADMIN_LOGIN_FAILED');
         
-        SELECT p_error_code AS error_code, p_error_message AS error_message;
+        SELECT 
+            'fail' AS status,
+            'Validation Exception' AS error_type,
+            v_error_code AS error_code,
+            v_error_message AS error_message;
         LEAVE proc_label;
     END IF;
     
     -- Check if account is locked
     IF v_locked_until IS NOT NULL AND v_locked_until > NOW() THEN
-        SET p_error_code = '48003';
-        SET p_error_message = CONCAT('Account is locked until ', DATE_FORMAT(v_locked_until, '%Y-%m-%d %H:%i:%s'));
+        SET v_error_code = '48003';
+        SET v_error_message = CONCAT('Account is locked until ', DATE_FORMAT(v_locked_until, '%Y-%m-%d %H:%i:%s'));
         
         INSERT INTO activity_log (log_type, message, created_by, start_time, end_time, execution_time, ip_address, activity_type)
         VALUES ('WARNING', CONCAT('Login attempt on locked account: ', p_username), p_username, v_start_time, NOW(), 0, p_ip_address, 'ADMIN_LOGIN_LOCKED');
         
-        SELECT p_error_code AS error_code, p_error_message AS error_message;
+        SELECT 
+            'fail' AS status,
+            'Validation Exception' AS error_type,
+            v_error_code AS error_code,
+            v_error_message AS error_message;
         LEAVE proc_label;
     END IF;
     
     -- Check if account is active
     IF v_is_active = 0 THEN
-        SET p_error_code = '48004';
-        SET p_error_message = 'Account is inactive';
+        SET v_error_code = '48004';
+        SET v_error_message = 'Account is inactive';
         
         INSERT INTO activity_log (log_type, message, created_by, start_time, end_time, execution_time, ip_address, activity_type)
         VALUES ('WARNING', CONCAT('Login attempt on inactive account: ', p_username), p_username, v_start_time, NOW(), 0, p_ip_address, 'ADMIN_LOGIN_INACTIVE');
         
-        SELECT p_error_code AS error_code, p_error_message AS error_message;
+        SELECT 
+            'fail' AS status,
+            'Validation Exception' AS error_type,
+            v_error_code AS error_code,
+            v_error_message AS error_message;
         LEAVE proc_label;
     END IF;
     
@@ -124,13 +157,17 @@ proc_label: BEGIN
             END
         WHERE admin_id = v_admin_id;
         
-        SET p_error_code = '48002';
-        SET p_error_message = 'Invalid username or password';
+        SET v_error_code = '48002';
+        SET v_error_message = 'Invalid username or password';
         
         INSERT INTO activity_log (log_type, message, created_by, start_time, end_time, execution_time, ip_address, activity_type)
         VALUES ('WARNING', CONCAT('Failed login - invalid password for: ', p_username), p_username, v_start_time, NOW(), 0, p_ip_address, 'ADMIN_LOGIN_INVALID_PASSWORD');
         
-        SELECT p_error_code AS error_code, p_error_message AS error_message;
+        SELECT 
+            'fail' AS status,
+            'Validation Exception' AS error_type,
+            v_error_code AS error_code,
+            v_error_message AS error_message;
         LEAVE proc_label;
     END IF;
     
@@ -162,15 +199,17 @@ proc_label: BEGIN
     
     -- Return success with user details
     SELECT 
+        'success' AS status,
+        NULL AS error_type,
+        NULL AS error_code,
+        NULL AS error_message,
         v_admin_id AS admin_id,
         u.username,
         u.email,
         u.role,
         v_session_id AS session_id,
         v_expires_at AS expires_at,
-        v_mfa_enabled AS mfa_enabled,
-        NULL AS error_code,
-        NULL AS error_message
+        v_mfa_enabled AS mfa_enabled
     FROM admin_users u
     WHERE u.admin_id = v_admin_id;
     

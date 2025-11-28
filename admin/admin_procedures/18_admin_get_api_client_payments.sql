@@ -27,7 +27,19 @@ proc_label: BEGIN
     DECLARE v_total_count INT DEFAULT 0;
     DECLARE v_total_amount DECIMAL(10,2) DEFAULT 0;
     DECLARE v_successful_amount DECIMAL(10,2) DEFAULT 0;
+    DECLARE v_total_payments INT DEFAULT 0;
+    DECLARE v_error_code VARCHAR(10);
+    DECLARE v_error_message VARCHAR(255);
     DECLARE v_client_exists INT DEFAULT 0;
+    
+    -- Error handling
+    DECLARE EXIT HANDLER FOR SQLEXCEPTION
+    BEGIN
+        GET DIAGNOSTICS CONDITION 1
+            v_error_message = MESSAGE_TEXT,
+            v_error_code = MYSQL_ERRNO;
+        SELECT 'fail' AS status, 'SQL Exception' AS error_type, v_error_code AS error_code, v_error_message AS error_message;
+    END;
     
     -- Set default pagination values
     SET p_limit = COALESCE(p_limit, 50);
@@ -40,7 +52,8 @@ proc_label: BEGIN
     
     IF v_client_exists = 0 THEN
         SELECT 
-            'ERROR' AS status,
+            'fail' AS status,
+            'Client Not Found' AS error_type,
             '51011' AS error_code,
             'API client not found' AS error_message;
         LEAVE proc_label;
@@ -64,6 +77,10 @@ proc_label: BEGIN
     
     -- Return payment records
     SELECT 
+        'success' AS status,
+        NULL AS error_type,
+        NULL AS error_code,
+        NULL AS error_message,
         pi.id,
         pi.payment_intent_id,
         pi.amount,

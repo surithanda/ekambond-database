@@ -17,19 +17,33 @@ CREATE PROCEDURE `admin_enable_disable_account`(
     IN p_account_id INT,
     IN p_is_active TINYINT(1),
     IN p_reason VARCHAR(255),
-    IN p_admin_user VARCHAR(45),
-    OUT p_error_code VARCHAR(10),
-    OUT p_error_message VARCHAR(255)
+    IN p_admin_user VARCHAR(45)
 )
 proc_label: BEGIN
     DECLARE v_account_exists INT DEFAULT 0;
     DECLARE v_current_status TINYINT(1);
     DECLARE v_email VARCHAR(150);
     DECLARE v_start_time DATETIME;
+    DECLARE v_error_code VARCHAR(10);
+    DECLARE v_error_message VARCHAR(255);
+    
+    -- Error handling
+    DECLARE EXIT HANDLER FOR SQLEXCEPTION
+    BEGIN
+        GET DIAGNOSTICS CONDITION 1
+            v_error_message = MESSAGE_TEXT,
+            v_error_code = MYSQL_ERRNO;
+        SELECT 'fail' AS status, 'SQL Exception' AS error_type, v_error_code AS error_code, v_error_message AS error_message;
+    END;
+    
+    DECLARE EXIT HANDLER FOR SQLSTATE '45000'
+    BEGIN
+        SELECT 'fail' AS status, 'Validation Exception' AS error_type, v_error_code AS error_code, v_error_message AS error_message;
+    END;
     
     SET v_start_time = NOW();
-    SET p_error_code = NULL;
-    SET p_error_message = NULL;
+    SET v_error_code = NULL;
+    SET v_error_message = NULL;
     
     -- Check if account exists
     SELECT COUNT(*), is_active, email
@@ -38,19 +52,17 @@ proc_label: BEGIN
     WHERE account_id = p_account_id AND (is_deleted IS NULL OR is_deleted = 0);
     
     IF v_account_exists = 0 THEN
-        SET p_error_code = '51001';
-        SET p_error_message = 'Account not found';
-        
-        SELECT p_error_code AS error_code, p_error_message AS error_message;
+        SET v_error_code = '51001';
+        SET v_error_message = 'Account not found';
+        SELECT 'fail' AS status, 'Validation Exception' AS error_type, v_error_code AS error_code, v_error_message AS error_message;
         LEAVE proc_label;
     END IF;
     
     -- Check if status is already the same
     IF v_current_status = p_is_active THEN
-        SET p_error_code = '51002';
-        SET p_error_message = CONCAT('Account is already ', IF(p_is_active = 1, 'active', 'inactive'));
-        
-        SELECT p_error_code AS error_code, p_error_message AS error_message;
+        SET v_error_code = '51002';
+        SET v_error_message = CONCAT('Account is already ', IF(p_is_active = 1, 'active', 'inactive'));
+        SELECT 'fail' AS status, 'Validation Exception' AS error_type, v_error_code AS error_code, v_error_message AS error_message;
         LEAVE proc_label;
     END IF;
     
@@ -143,6 +155,10 @@ proc_label: BEGIN
     
     -- Return updated account status
     SELECT 
+        'success' AS status,
+        NULL AS error_type,
+        NULL AS error_code,
+        NULL AS error_message,
         account_id,
         account_code,
         email,
@@ -153,10 +169,7 @@ proc_label: BEGIN
         activated_user,
         deactivated_date,
         deactivated_user,
-        deactivation_reason,
-        'SUCCESS' AS status,
-        NULL AS error_code,
-        NULL AS error_message
+        deactivation_reason
     FROM account
     WHERE account_id = p_account_id;
     

@@ -19,38 +19,60 @@ CREATE PROCEDURE `admin_users_create`(
     IN p_email VARCHAR(150),
     IN p_password_hash VARCHAR(255),
     IN p_role VARCHAR(20),
-    IN p_created_by VARCHAR(45),
-    OUT p_error_code VARCHAR(10),
-    OUT p_error_message VARCHAR(255)
+    IN p_created_by VARCHAR(45)
 )
 proc_label: BEGIN
     DECLARE v_admin_id INT;
     DECLARE v_username_exists INT DEFAULT 0;
     DECLARE v_email_exists INT DEFAULT 0;
     DECLARE v_start_time DATETIME;
+    DECLARE v_error_code VARCHAR(10);
+    DECLARE v_error_message VARCHAR(255);
     
     -- Error handling
     DECLARE EXIT HANDLER FOR SQLEXCEPTION
     BEGIN
+        GET DIAGNOSTICS CONDITION 1
+            v_error_message = MESSAGE_TEXT,
+            v_error_code = MYSQL_ERRNO;
+        
         INSERT INTO activity_log (log_type, message, created_by, start_time, end_time, activity_type)
         VALUES ('ERROR', 'admin_users_create failed: SQL Exception', p_created_by, v_start_time, NOW(), 'ADMIN_USER_CREATE_ERROR');
         
-        SET p_error_code = '50001';
-        SET p_error_message = 'Failed to create admin user due to system error';
+        SELECT 
+            'fail' AS status,
+            'SQL Exception' AS error_type,
+            '50001' AS error_code,
+            'Failed to create admin user due to system error' AS error_message;
+    END;
+    
+    -- Custom error handler
+    DECLARE EXIT HANDLER FOR SQLSTATE '45000'
+    BEGIN
+        INSERT INTO activity_log (log_type, message, created_by, start_time, end_time, activity_type)
+        VALUES ('ERROR', v_error_message, p_created_by, v_start_time, NOW(), 'ADMIN_USER_CREATE_ERROR');
         
-        SELECT p_error_code AS error_code, p_error_message AS error_message;
+        SELECT 
+            'fail' AS status,
+            'Validation Exception' AS error_type,
+            v_error_code AS error_code,
+            v_error_message AS error_message;
     END;
     
     SET v_start_time = NOW();
-    SET p_error_code = NULL;
-    SET p_error_message = NULL;
+    SET v_error_code = NULL;
+    SET v_error_message = NULL;
     
     -- Validate role
     IF p_role NOT IN ('viewer', 'approver', 'admin') THEN
-        SET p_error_code = '50002';
-        SET p_error_message = 'Invalid role. Must be viewer, approver, or admin';
+        SET v_error_code = '50002';
+        SET v_error_message = 'Invalid role. Must be viewer, approver, or admin';
         
-        SELECT p_error_code AS error_code, p_error_message AS error_message;
+        SELECT 
+            'fail' AS status,
+            'Validation Exception' AS error_type,
+            v_error_code AS error_code,
+            v_error_message AS error_message;
         LEAVE proc_label;
     END IF;
     
@@ -60,10 +82,14 @@ proc_label: BEGIN
     WHERE username = p_username;
     
     IF v_username_exists > 0 THEN
-        SET p_error_code = '50003';
-        SET p_error_message = 'Username already exists';
+        SET v_error_code = '50003';
+        SET v_error_message = 'Username already exists';
         
-        SELECT p_error_code AS error_code, p_error_message AS error_message;
+        SELECT 
+            'fail' AS status,
+            'Validation Exception' AS error_type,
+            v_error_code AS error_code,
+            v_error_message AS error_message;
         LEAVE proc_label;
     END IF;
     
@@ -73,10 +99,14 @@ proc_label: BEGIN
     WHERE email = p_email;
     
     IF v_email_exists > 0 THEN
-        SET p_error_code = '50004';
-        SET p_error_message = 'Email already exists';
+        SET v_error_code = '50004';
+        SET v_error_message = 'Email already exists';
         
-        SELECT p_error_code AS error_code, p_error_message AS error_message;
+        SELECT 
+            'fail' AS status,
+            'Validation Exception' AS error_type,
+            v_error_code AS error_code,
+            v_error_message AS error_message;
         LEAVE proc_label;
     END IF;
     
@@ -112,14 +142,16 @@ proc_label: BEGIN
     
     -- Return new admin user details
     SELECT 
+        'success' AS status,
+        NULL AS error_type,
+        NULL AS error_code,
+        NULL AS error_message,
         admin_id,
         username,
         email,
         role,
         is_active,
-        created_at,
-        NULL AS error_code,
-        NULL AS error_message
+        created_at
     FROM admin_users
     WHERE admin_id = v_admin_id;
     

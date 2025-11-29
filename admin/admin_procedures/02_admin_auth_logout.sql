@@ -22,25 +22,27 @@ proc_label: BEGIN
     DECLARE v_execution_time INT;
     DECLARE v_error_code VARCHAR(10);
     DECLARE v_error_message VARCHAR(255);
+    DECLARE v_mysql_errno INT;
+    DECLARE v_message_text TEXT;
     
     -- Error handling
     DECLARE EXIT HANDLER FOR SQLEXCEPTION
     BEGIN
+        GET DIAGNOSTICS CONDITION 1
+            v_message_text = MESSAGE_TEXT,
+            v_mysql_errno = MYSQL_ERRNO;
+        
         SET v_end_time = NOW();
         SET v_execution_time = TIMESTAMPDIFF(MICROSECOND, v_start_time, v_end_time);
         
-        GET DIAGNOSTICS CONDITION 1
-            v_error_message = MESSAGE_TEXT,
-            v_error_code = MYSQL_ERRNO;
-        
         INSERT INTO activity_log (log_type, message, created_by, start_time, end_time, execution_time, activity_type)
-        VALUES ('ERROR', 'admin_auth_logout failed: SQL Exception', CONCAT('admin_', p_admin_id), v_start_time, v_end_time, v_execution_time, 'ADMIN_LOGOUT_ERROR');
+        VALUES ('ERROR', COALESCE(v_message_text, 'Unknown SQL error'), CONCAT('admin_', p_admin_id), v_start_time, v_end_time, v_execution_time, 'ADMIN_LOGOUT_ERROR');
         
         SELECT 
             'fail' AS status,
             'SQL Exception' AS error_type,
-            '48005' AS error_code,
-            'Logout failed due to system error' AS error_message;
+            CAST(COALESCE(v_mysql_errno, 48005) AS CHAR) AS error_code,
+            COALESCE(v_message_text, 'Logout failed due to system error') AS error_message;
     END;
     
     -- Custom error handler

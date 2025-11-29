@@ -28,22 +28,24 @@ proc_label: BEGIN
     DECLARE v_start_time DATETIME;
     DECLARE v_error_code VARCHAR(10);
     DECLARE v_error_message VARCHAR(255);
+    DECLARE v_mysql_errno INT;
+    DECLARE v_message_text TEXT;
     
     -- Error handling
     DECLARE EXIT HANDLER FOR SQLEXCEPTION
     BEGIN
         GET DIAGNOSTICS CONDITION 1
-            v_error_message = MESSAGE_TEXT,
-            v_error_code = MYSQL_ERRNO;
+            v_message_text = MESSAGE_TEXT,
+            v_mysql_errno = MYSQL_ERRNO;
         
         INSERT INTO activity_log (log_type, message, created_by, start_time, end_time, activity_type)
-        VALUES ('ERROR', 'admin_users_create failed: SQL Exception', p_created_by, v_start_time, NOW(), 'ADMIN_USER_CREATE_ERROR');
+        VALUES ('ERROR', COALESCE(v_message_text, 'Unknown SQL error'), p_created_by, v_start_time, NOW(), 'ADMIN_USER_CREATE_ERROR');
         
         SELECT 
             'fail' AS status,
             'SQL Exception' AS error_type,
-            '50001' AS error_code,
-            'Failed to create admin user due to system error' AS error_message;
+            CAST(COALESCE(v_mysql_errno, 50001) AS CHAR) AS error_code,
+            COALESCE(v_message_text, 'Failed to create admin user') AS error_message;
     END;
     
     -- Custom error handler

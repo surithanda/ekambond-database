@@ -31,14 +31,24 @@ proc_label: BEGIN
     DECLARE v_error_code VARCHAR(10);
     DECLARE v_error_message VARCHAR(255);
     DECLARE v_client_exists INT DEFAULT 0;
+    DECLARE v_mysql_errno INT;
+    DECLARE v_message_text TEXT;
     
     -- Error handling
     DECLARE EXIT HANDLER FOR SQLEXCEPTION
     BEGIN
         GET DIAGNOSTICS CONDITION 1
-            v_error_message = MESSAGE_TEXT,
-            v_error_code = MYSQL_ERRNO;
-        SELECT 'fail' AS status, 'SQL Exception' AS error_type, v_error_code AS error_code, v_error_message AS error_message;
+            v_message_text = MESSAGE_TEXT,
+            v_mysql_errno = MYSQL_ERRNO;
+        
+        INSERT INTO activity_log (log_type, message, activity_type)
+        VALUES ('ERROR', COALESCE(v_message_text, 'Unknown SQL error'), 'ADMIN_GET_CLIENT_PAYMENTS_ERROR');
+        
+        SELECT 
+            'fail' AS status,
+            'SQL Exception' AS error_type,
+            CAST(COALESCE(v_mysql_errno, 48001) AS CHAR) AS error_code,
+            COALESCE(v_message_text, 'Failed to get client payments') AS error_message;
     END;
     
     -- Set default pagination values

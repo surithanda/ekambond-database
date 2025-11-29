@@ -13,7 +13,7 @@ DELIMITER $$
 
 DROP PROCEDURE IF EXISTS `admin_auth_login`$$
 
-CREATE PROCEDURE `admin_auth_login`(
+CREATE DEFINER=`root`@`localhost` PROCEDURE `admin_auth_login`(
     IN p_username VARCHAR(150),
     IN p_password_hash VARCHAR(255),
     IN p_ip_address VARCHAR(45),
@@ -35,28 +35,28 @@ proc_label: BEGIN
     DECLARE v_execution_time INT;
     DECLARE v_error_code VARCHAR(10);
     DECLARE v_error_message VARCHAR(255);
+	DECLARE v_mysql_errno INT;
+	DECLARE v_message_text TEXT;    
     
-    -- Error handling
     DECLARE EXIT HANDLER FOR SQLEXCEPTION
     BEGIN
+        GET DIAGNOSTICS CONDITION 1
+            v_message_text = MESSAGE_TEXT,
+            v_mysql_errno = MYSQL_ERRNO;
+        
         SET v_end_time = NOW();
         SET v_execution_time = TIMESTAMPDIFF(MICROSECOND, v_start_time, v_end_time);
-        
-        GET DIAGNOSTICS CONDITION 1
-            v_error_message = MESSAGE_TEXT,
-            v_error_code = MYSQL_ERRNO;
-        
-        INSERT INTO activity_log (log_type, message, created_by, start_time, end_time, execution_time, ip_address, activity_type)
-        VALUES ('ERROR', 'admin_auth_login failed: SQL Exception', p_username, v_start_time, v_end_time, v_execution_time, p_ip_address, 'ADMIN_LOGIN_ERROR');
+		INSERT INTO activity_log (log_type, message, created_by, start_time, end_time, execution_time, ip_address, activity_type)
+		VALUES ('ERROR', COALESCE(v_message_text, 'Unknown SQL error'), p_username, v_start_time, v_end_time, v_execution_time, p_ip_address, 'ADMIN_LOGIN_ERROR');
         
         SELECT 
             'fail' AS status,
             'SQL Exception' AS error_type,
-            '48001' AS error_code,
-            'Authentication failed due to system error' AS error_message;
+            CAST(COALESCE(v_mysql_errno, 48001) AS CHAR) AS error_code,
+            COALESCE(v_message_text, 'Unknown SQL exception occurred') AS error_message;
     END;
     
-    -- Custom error handler
+    
     DECLARE EXIT HANDLER FOR SQLSTATE '45000'
     BEGIN
         SET v_end_time = NOW();
@@ -76,7 +76,7 @@ proc_label: BEGIN
     SET v_error_code = NULL;
     SET v_error_message = NULL;
     
-    -- Find admin user by username or email
+    
     SELECT 
         admin_id, 
         password_hash, 
@@ -94,10 +94,13 @@ proc_label: BEGIN
         v_mfa_enabled,
         v_role
     FROM admin_users
-    WHERE (username = p_username OR email = p_username)
+    -- WHERE (username = p_username OR email = p_username)
+	WHERE (username COLLATE utf8mb4_0900_ai_ci = p_username COLLATE utf8mb4_0900_ai_ci
+       OR email COLLATE utf8mb4_0900_ai_ci = p_username COLLATE utf8mb4_0900_ai_ci)
+    
     LIMIT 1;
     
-    -- Check if user exists
+    
     IF v_admin_id IS NULL THEN
         SET v_error_code = '48002';
         SET v_error_message = 'Invalid username or password';
@@ -113,7 +116,7 @@ proc_label: BEGIN
         LEAVE proc_label;
     END IF;
     
-    -- Check if account is locked
+    
     IF v_locked_until IS NOT NULL AND v_locked_until > NOW() THEN
         SET v_error_code = '48003';
         SET v_error_message = CONCAT('Account is locked until ', DATE_FORMAT(v_locked_until, '%Y-%m-%d %H:%i:%s'));
@@ -129,7 +132,7 @@ proc_label: BEGIN
         LEAVE proc_label;
     END IF;
     
-    -- Check if account is active
+    
     IF v_is_active = 0 THEN
         SET v_error_code = '48004';
         SET v_error_message = 'Account is inactive';
@@ -145,10 +148,11 @@ proc_label: BEGIN
         LEAVE proc_label;
     END IF;
     
-    -- Verify password (Note: Password verification should be done in application layer)
-    -- This is a simplified check - actual bcrypt comparison should be done in Node.js
-    IF v_stored_password_hash != p_password_hash THEN
-        -- Increment failed login attempts
+    
+    
+    
+    IF BINARY v_stored_password_hash !=  p_password_hash THEN
+        
         UPDATE admin_users 
         SET failed_login_attempts = failed_login_attempts + 1,
             locked_until = CASE 
@@ -171,33 +175,33 @@ proc_label: BEGIN
         LEAVE proc_label;
     END IF;
     
-    -- Generate session ID
+    
     SET v_session_id = UUID();
     SET v_expires_at = DATE_ADD(NOW(), INTERVAL 8 HOUR);
     
-    -- Create session
+    
     INSERT INTO admin_sessions (session_id, admin_id, ip_address, user_agent, expires_at, is_active)
     VALUES (v_session_id, v_admin_id, p_ip_address, p_user_agent, v_expires_at, 1);
     
-    -- Update admin user
+    
     UPDATE admin_users 
     SET last_login = NOW(),
         failed_login_attempts = 0,
         locked_until = NULL
     WHERE admin_id = v_admin_id;
     
-    -- Log successful login
+    
     SET v_end_time = NOW();
     SET v_execution_time = TIMESTAMPDIFF(MICROSECOND, v_start_time, v_end_time);
     
     INSERT INTO activity_log (log_type, message, created_by, start_time, end_time, execution_time, ip_address, activity_type)
     VALUES ('INFO', CONCAT('Successful admin login: ', p_username), p_username, v_start_time, v_end_time, v_execution_time, p_ip_address, 'ADMIN_LOGIN_SUCCESS');
     
-    -- Insert audit log
+    
     INSERT INTO admin_audit_log (admin_id, action_type, resource_type, resource_id, ip_address, user_agent)
     VALUES (v_admin_id, 'LOGIN', 'ADMIN_SESSION', v_session_id, p_ip_address, p_user_agent);
     
-    -- Return success with user details
+    
     SELECT 
         'success' AS status,
         NULL AS error_type,

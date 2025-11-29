@@ -41,30 +41,33 @@ BEGIN
     DECLARE end_time DATETIME;
     DECLARE execution_time INT;
     DECLARE partner_exists INT DEFAULT 0;
+    DECLARE v_mysql_errno INT;
+    DECLARE v_message_text TEXT;
     
     -- Declare handler for SQL exceptions
     DECLARE EXIT HANDLER FOR SQLEXCEPTION 
     BEGIN
-        ROLLBACK;
         GET DIAGNOSTICS CONDITION 1
-            error_message = MESSAGE_TEXT,
-            error_code = MYSQL_ERRNO;
+            v_message_text = MESSAGE_TEXT,
+            v_mysql_errno = MYSQL_ERRNO;
+        
+        ROLLBACK;
         
         -- Log error to activity_log
         INSERT INTO activity_log (
             log_type, message, created_by, activity_type, activity_details,
             start_time, end_time, execution_time
         ) VALUES (
-            'ERROR', error_message, p_modified_user, 'REGISTERED_PARTNER_UPDATE', 
-            CONCAT('Error Code: ', error_code),
+            'ERROR', COALESCE(v_message_text, 'Unknown SQL error'), p_modified_user, 'ADMIN_REGISTERED_PARTNER_UPDATE', 
+            CONCAT('Error Code: ', COALESCE(v_mysql_errno, 48001)),
             start_time, NOW(), TIMESTAMPDIFF(MICROSECOND, start_time, NOW()) / 1000
         );
         
         SELECT 
             'fail' AS status,
-            'SQL Exception' as error_type,
-            error_code,
-            error_message;            
+            'SQL Exception' AS error_type,
+            CAST(COALESCE(v_mysql_errno, 48001) AS CHAR) AS error_code,
+            COALESCE(v_message_text, 'Failed to update partner') AS error_message;            
     END;
     
     -- Declare handler for custom errors

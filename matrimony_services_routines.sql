@@ -9816,7 +9816,7 @@ CREATE PROCEDURE `lkp_get_Country_List`()
 BEGIN
 
 	SELECT * FROM country
-    WHERE country_name in ('India', 'United States');
+    WHERE country_name in ('India', 'United States','Canada','United Kingdom','Australia');
 
 END$$
 DELIMITER ;

@@ -49,7 +49,7 @@ CREATE TABLE `admin_sessions` (
     INDEX `idx_admin_id` (`admin_id`),
     INDEX `idx_expires_at` (`expires_at`),
     INDEX `idx_is_active` (`is_active`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB;
 
 -- =============================================
 -- Table: api_keys
@@ -72,7 +72,7 @@ CREATE TABLE `api_keys` (
     INDEX `idx_client_id` (`client_id`),
     INDEX `idx_is_active` (`is_active`),
     INDEX `idx_expires_at` (`expires_at`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB;
 
 -- =============================================
 -- Table: notification_queue
@@ -95,7 +95,7 @@ CREATE TABLE `notification_queue` (
     INDEX `idx_status` (`status`),
     INDEX `idx_scheduled_at` (`scheduled_at`),
     INDEX `idx_notification_type` (`notification_type`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB;
 
 -- =============================================
 -- Table: admin_audit_log
@@ -117,7 +117,7 @@ CREATE TABLE `admin_audit_log` (
     INDEX `idx_action_type` (`action_type`),
     INDEX `idx_resource_type` (`resource_type`),
     INDEX `idx_created_at` (`created_at`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB;
 
 -- =============================================
 -- Table: password_reset_tokens
@@ -135,7 +135,7 @@ CREATE TABLE `password_reset_tokens` (
     INDEX `idx_token` (`token`),
     INDEX `idx_admin_id` (`admin_id`),
     INDEX `idx_expires_at` (`expires_at`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB;
 
 -- =============================================
 -- Insert default admin user (password: Admin@123)

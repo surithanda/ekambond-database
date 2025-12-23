@@ -54,8 +54,7 @@ BEGIN
     FROM profile_personal pp
     WHERE 
         (p_profile_id IS NULL OR pp.profile_id = p_profile_id)
-        AND (p_account_id IS NULL OR pp.account_id = p_account_id)
-        AND (p_verification_status IS NULL OR pp.verification_status = p_verification_status);
+        AND (p_account_id IS NULL OR pp.account_id = p_account_id);
     
     -- Return complete profile data
     SELECT 
@@ -66,95 +65,87 @@ BEGIN
         -- Personal Info
         pp.profile_id,
         pp.account_id,
-        pp.height,
+        pp.height_cms AS height,
         pp.weight,
         pp.marital_status,
-        pp.mother_tongue,
-        pp.physical_status,
-        pp.body_type,
+        NULL AS mother_tongue,
+        NULL AS physical_status,
+        NULL AS body_type,
         pp.complexion,
-        pp.eating_habits,
-        pp.drinking_habits,
-        pp.smoking_habits,
-        pp.profile_created_by,
-        pp.about_me,
-        pp.hobbies,
-        pp.interests,
-        pp.verification_status AS personal_verification_status,
-        pp.verified_by AS personal_verified_by,
-        pp.verified_date AS personal_verified_date,
+        NULL AS eating_habits,
+        NULL AS drinking_habits,
+        NULL AS smoking_habits,
+        NULL AS profile_created_by,
+        pp.short_summary AS about_me,
+        NULL AS hobbies,
+        NULL AS interests,
+        'pending' AS personal_verification_status,
+        NULL AS personal_verified_by,
+        NULL AS personal_verified_date,
         pp.created_date AS personal_created_date,
         
         -- Address Info
         (SELECT JSON_ARRAYAGG(
             JSON_OBJECT(
-                'address_id', pa.address_id,
+                'address_id', pa.profile_address_id,
                 'address_type', pa.address_type,
                 'address_line1', pa.address_line1,
                 'address_line2', pa.address_line2,
                 'city', pa.city,
                 'state', pa.state,
-                'country', pa.country,
-                'zip', pa.zip,
-                'verification_status', pa.verification_status,
-                'verified_by', pa.verified_by,
-                'verified_date', pa.verified_date
+                'country_id', pa.country_id,
+                'zip', pa.zip
             )
         ) FROM profile_address pa WHERE pa.profile_id = pp.profile_id) AS addresses,
         
         -- Education Info
         (SELECT JSON_ARRAYAGG(
             JSON_OBJECT(
-                'education_id', pe.education_id,
+                'education_id', pe.profile_education_id,
                 'education_level', pe.education_level,
                 'institution_name', pe.institution_name,
                 'field_of_study', pe.field_of_study,
-                'year_of_passing', pe.year_of_passing,
-                'verification_status', pe.verification_status,
-                'verified_by', pe.verified_by,
-                'verified_date', pe.verified_date
+                'year_completed', pe.year_completed
             )
         ) FROM profile_education pe WHERE pe.profile_id = pp.profile_id) AS education,
         
         -- Employment Info
         (SELECT JSON_ARRAYAGG(
             JSON_OBJECT(
-                'employment_id', pem.employment_id,
-                'employment_status', pem.employment_status,
-                'occupation', pem.occupation,
-                'organization_name', pem.organization_name,
-                'annual_income', pem.annual_income,
-                'currency', pem.currency,
-                'verification_status', pem.verification_status,
-                'verified_by', pem.verified_by,
-                'verified_date', pem.verified_date
+                'employment_id', pem.profile_employment_id,
+                'institution_name', pem.institution_name,
+                'job_title_id', pem.job_title_id,
+                'start_year', pem.start_year,
+                'end_year', pem.end_year,
+                'last_salary_drawn', pem.last_salary_drawn
             )
         ) FROM profile_employment pem WHERE pem.profile_id = pp.profile_id) AS employment,
         
         -- Family References
         (SELECT JSON_ARRAYAGG(
             JSON_OBJECT(
-                'reference_id', pfr.reference_id,
+                'reference_id', pfr.profile_family_reference_id,
                 'reference_type', pfr.reference_type,
-                'name', pfr.name,
-                'relationship', pfr.relationship,
-                'occupation', pfr.occupation,
-                'phone', pfr.phone,
-                'email', pfr.email
+                'first_name', pfr.first_name,
+                'last_name', pfr.last_name,
+                'middle_name', pfr.middle_name,
+                'primary_phone', pfr.primary_phone,
+                'email', pfr.email,
+                'employment_status', pfr.employment_status,
+                'emp_company_name', pfr.emp_company_name
             )
-        ) FROM profile_family_references pfr WHERE pfr.profile_id = pp.profile_id) AS family_references,
+        ) FROM profile_family_reference pfr WHERE pfr.profile_id = pp.profile_id) AS family_references,
         
         -- Photos
         (SELECT JSON_ARRAYAGG(
             JSON_OBJECT(
-                'photo_id', pph.photo_id,
-                'photo_url', pph.photo_url,
+                'photo_id', pph.profile_photo_id,
+                'url', pph.url,
                 'photo_type', pph.photo_type,
-                'is_primary', pph.is_primary,
-                'verification_status', pph.verification_status,
-                'uploaded_date', pph.uploaded_date
+                'caption', pph.caption,
+                'date_created', pph.date_created
             )
-        ) FROM profile_photos pph WHERE pph.profile_id = pp.profile_id) AS photos,
+        ) FROM profile_photo pph WHERE pph.profile_id = pp.profile_id AND pph.softdelete = 0) AS photos,
         
         -- Account Info
         a.account_code,
@@ -173,7 +164,6 @@ BEGIN
     WHERE 
         (p_profile_id IS NULL OR pp.profile_id = p_profile_id)
         AND (p_account_id IS NULL OR pp.account_id = p_account_id)
-        AND (p_verification_status IS NULL OR pp.verification_status = p_verification_status)
     ORDER BY pp.created_date DESC
     LIMIT p_limit OFFSET p_offset;
     

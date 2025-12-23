@@ -58,12 +58,8 @@ BEGIN
         AND (p_is_active IS NULL OR a.is_active = p_is_active)
         AND (a.is_deleted IS NULL OR a.is_deleted = 0);
     
-    -- Return account registrations with login info
+    -- Return account registrations
     SELECT 
-        'success' AS status,
-        NULL AS error_type,
-        NULL AS error_code,
-        NULL AS error_message,
         a.account_id,
         a.account_code,
         a.email,
@@ -93,30 +89,16 @@ BEGIN
         a.modified_date,
         a.modified_user,
         a.registered_partner_id,
-        -- Login information
-        GROUP_CONCAT(
-            DISTINCT CONCAT(
-                '{"login_id":', l.login_id,
-                ',"username":"', l.username,
-                '","is_active":', COALESCE(l.is_active, 0),
-                ',"last_login":"', COALESCE(l.last_login, ''),
-                '","created_date":"', l.created_date,
-                '"}'
-            ) SEPARATOR ','
-        ) AS login_info,
-        COUNT(DISTINCT l.login_id) AS login_count,
         -- Pagination info
         v_total_count AS total_count,
         p_limit AS page_limit,
         p_offset AS page_offset
     FROM account a
-    LEFT JOIN login l ON a.account_id = l.account_id
     WHERE 
         (p_email IS NULL OR a.email = p_email)
         AND (p_account_id IS NULL OR a.account_id = p_account_id)
         AND (p_is_active IS NULL OR a.is_active = p_is_active)
         AND (a.is_deleted IS NULL OR a.is_deleted = 0)
-    GROUP BY a.account_id
     ORDER BY a.created_date DESC
     LIMIT p_limit OFFSET p_offset;
     

@@ -51,74 +51,47 @@ BEGIN
     SELECT COUNT(*) INTO v_total_count
     FROM registered_partner
     WHERE 
-        (p_status IS NULL OR approval_status = p_status)
+        (p_status IS NULL OR verification_status = p_status)
         AND (p_search IS NULL OR 
              business_name LIKE CONCAT('%', p_search, '%') OR 
-             contact_email LIKE CONCAT('%', p_search, '%') OR
-             contact_person LIKE CONCAT('%', p_search, '%'));
+             primary_contact_email LIKE CONCAT('%', p_search, '%') OR
+             business_email LIKE CONCAT('%', p_search, '%') OR
+             CONCAT(primary_contact_first_name, ' ', primary_contact_last_name) LIKE CONCAT('%', p_search, '%'));
     
     -- Return partner registration requests
     SELECT 
-        'success' AS status,
-        NULL AS error_type,
-        NULL AS error_code,
-        NULL AS error_message,
-        rp.id,
+        rp.reg_partner_id AS id,
         rp.business_name,
-        rp.business_type,
-        rp.registration_number,
-        rp.tax_id,
-        rp.contact_person,
-        rp.contact_email,
-        rp.contact_phone,
-        rp.contact_phone_country,
-        rp.website,
-        rp.address_line1,
-        rp.address_line2,
-        rp.city,
-        rp.state,
-        rp.country,
-        rp.zip,
-        rp.approval_status,
-        rp.approved_by,
-        rp.approved_date,
-        rp.rejection_reason,
-        rp.created_date,
-        rp.created_user,
-        rp.modified_date,
-        rp.modified_user,
-        -- Check if already converted to API client
-        CASE 
-            WHEN EXISTS (
-                SELECT 1 FROM api_clients ac 
-                WHERE ac.business_name = rp.business_name 
-                AND ac.contact_email = rp.contact_email
-            ) THEN 1
-            ELSE 0
-        END AS is_api_client,
-        -- Get API client ID if exists
-        (SELECT id FROM api_clients ac 
-         WHERE ac.business_name = rp.business_name 
-         AND ac.contact_email = rp.contact_email
-         LIMIT 1) AS api_client_id,
+        rp.business_description AS business_type,
+        rp.business_registration_number AS registration_number,
+        rp.business_ITIN AS tax_id,
+        CONCAT(rp.primary_contact_first_name, ' ', rp.primary_contact_last_name) AS contact_person,
+        rp.primary_contact_email AS contact_email,
+        rp.primary_phone AS contact_phone,
+        CAST(rp.primary_phone_country_code AS CHAR) AS contact_phone_country,
+        rp.business_website AS website,
+        rp.verification_status AS approval_status,
+        rp.user_modified AS approved_by,
+        rp.date_modified AS approved_date,
+        rp.verification_comment AS rejection_reason,
+        rp.date_created AS created_date,
         -- Pagination info
-        v_total_count AS total_count,
-        p_limit AS page_limit,
-        p_offset AS page_offset
+        v_total_count AS total_count
     FROM registered_partner rp
     WHERE 
-        (p_status IS NULL OR rp.approval_status = p_status)
+        (p_status IS NULL OR rp.verification_status = p_status)
         AND (p_search IS NULL OR 
              rp.business_name LIKE CONCAT('%', p_search, '%') OR 
-             rp.contact_email LIKE CONCAT('%', p_search, '%') OR
-             rp.contact_person LIKE CONCAT('%', p_search, '%'))
+             rp.primary_contact_email LIKE CONCAT('%', p_search, '%') OR
+             rp.business_email LIKE CONCAT('%', p_search, '%') OR
+             CONCAT(rp.primary_contact_first_name, ' ', rp.primary_contact_last_name) LIKE CONCAT('%', p_search, '%'))
     ORDER BY 
-        CASE rp.approval_status
+        CASE rp.verification_status
             WHEN 'pending' THEN 1
             WHEN 'approved' THEN 2
             WHEN 'rejected' THEN 3
         END,
-        rp.created_date DESC
+        rp.date_created DESC
     LIMIT p_limit OFFSET p_offset;
     
 END$$

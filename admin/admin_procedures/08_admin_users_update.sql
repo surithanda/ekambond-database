@@ -62,7 +62,7 @@ proc_label: BEGIN
     SET v_error_message = NULL;
     
     -- Check if admin exists
-    SELECT COUNT(*), role, is_active
+    SELECT COUNT(*), MAX(role), MAX(is_active)
     INTO v_admin_exists, v_old_role, v_old_is_active
     FROM admin_users
     WHERE admin_id = p_admin_id;

@@ -57,7 +57,7 @@ proc_label: BEGIN
     SET v_error_message = NULL;
     
     -- Check if account exists
-    SELECT COUNT(*), is_active, email
+    SELECT COUNT(*), MAX(is_active), MAX(email)
     INTO v_account_exists, v_current_status, v_email
     FROM account
     WHERE account_id = p_account_id AND (is_deleted IS NULL OR is_deleted = 0);
